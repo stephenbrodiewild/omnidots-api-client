@@ -4,21 +4,14 @@
 package client
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"path"
 	"strings"
 	"time"
-
-	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/labstack/echo/v4"
 )
 
 const (
@@ -306,149 +299,4 @@ func ParseListSensorsResponse(rsp *http.Response) (*ListSensorsResponse, error) 
 	}
 
 	return response, nil
-}
-
-// ServerInterface represents all server handlers.
-type ServerInterface interface {
-	// Get a list of active sensors
-	// (GET /list_sensors)
-	ListSensors(ctx echo.Context) error
-}
-
-// ServerInterfaceWrapper converts echo contexts to parameters.
-type ServerInterfaceWrapper struct {
-	Handler ServerInterface
-}
-
-// ListSensors converts echo context to params.
-func (w *ServerInterfaceWrapper) ListSensors(ctx echo.Context) error {
-	var err error
-
-	ctx.Set(ApiKeyAuthScopes, []string{})
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.ListSensors(ctx)
-	return err
-}
-
-// This is a simple interface which specifies echo.Route addition functions which
-// are present on both echo.Echo and echo.Group, since we want to allow using
-// either of them for path registration
-type EchoRouter interface {
-	CONNECT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	DELETE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	GET(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	HEAD(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	OPTIONS(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	PATCH(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	POST(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	PUT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	TRACE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-}
-
-// RegisterHandlers adds each server route to the EchoRouter.
-func RegisterHandlers(router EchoRouter, si ServerInterface) {
-	RegisterHandlersWithBaseURL(router, si, "")
-}
-
-// Registers handlers, and prepends BaseURL to the paths, so that the paths
-// can be served under a prefix.
-func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL string) {
-
-	wrapper := ServerInterfaceWrapper{
-		Handler: si,
-	}
-
-	router.GET(baseURL+"/list_sensors", wrapper.ListSensors)
-
-}
-
-// Base64 encoded, gzipped, json marshaled Swagger object
-var swaggerSpec = []string{
-
-	"H4sIAAAAAAAC/7xVTW/jNhD9K8S0hxZQLW+3veiWAkVhNIsGCXoKAmEsjWXuUiQzHAo1FvrvBSnHH7Hc",
-	"BEXRkw3OB9+89zj6Co3rvbNkJUD1FUKzpR7z31+ZHd9T8M4GSgeenScWTTm8JePT78ZxjwIVRNZQgOw8",
-	"QQVBWNsOxgJ6CgG73OAi5r6kY/oLe28Iqg2aQIcWa+cMoYVxLIDpOWqmFqrHVPR0SHLrz9RI6nXrGhTt",
-	"7CVSg6IltnSGtnVxbegI2MZ+TZwaGWe79+ePM1A+EYaYZrxz2solIGxED6eMHEYtAA1yX3vihqyc86at",
-	"UDdhbFCoc7ybZbVFwTrgQLWhgcxJznHIVgdcm5TRzuPoom6pNtrOK6fbeWB9Hp16slK3kQ+KXMvUtqun",
-	"2MwlFvv5gDA2VHsXpBbWXeo4e8c+j+k9abOMnWTFQFybE5d9y7SBCr4pj0+o3L+f8uDGsYBBrycirk06",
-	"56EHssHxpXcaZy01Qm0dQyqeo8dgkEBkzw2MQj+I7mnukf6bsY4C+heb/1Ppq0dxXd5ZNmLTUAjXt9Gr",
-	"TSIcZxZJASGzmiu0UB/eAr1X4QgJmXH3vpWUr2sia9k9pHYT0Buvf6fdTZRtBmGhgudIvIMXPkDcF7JH",
-	"kTAXwJj6tRQa1n5SCm7uVmrjWGHmRttO/dFb3ToJKhAPuqGgtG1MbFNsGl2l5bCAArTduEy+lkQYHEpv",
-	"7lZQwEAcpls+LJaLZV7Wnix6DRV8XCwXH6EAj7LNQ5VGB6lPyO0o+yEplP2yaqGCWx3kYZ+T+Ju0zPk/",
-	"Lpd7cwtNVkLvjZ7MVn4OkzMnVd7U7JVX5phTCbByGzWtYvUCfSzgp/8QyvkndAbIL9iqe3qOFER9t7ID",
-	"Gt2qO2TsSYiDcqw+6Unb4+n3CebP/yfMlRVii0Y9EA/EKhecORyqx3NvPz6NTwWE2PeYPlPwG4nCq7RP",
-	"rVLvkDtFNlDBVsRXZfnn/W2JXpfDBxifxr8DAAD//4SznUGyCAAA",
-}
-
-// GetSwagger returns the content of the embedded swagger specification file
-// or error if failed to decode
-func decodeSpec() ([]byte, error) {
-	zipped, err := base64.StdEncoding.DecodeString(strings.Join(swaggerSpec, ""))
-	if err != nil {
-		return nil, fmt.Errorf("error base64 decoding spec: %w", err)
-	}
-	zr, err := gzip.NewReader(bytes.NewReader(zipped))
-	if err != nil {
-		return nil, fmt.Errorf("error decompressing spec: %w", err)
-	}
-	var buf bytes.Buffer
-	_, err = buf.ReadFrom(zr)
-	if err != nil {
-		return nil, fmt.Errorf("error decompressing spec: %w", err)
-	}
-
-	return buf.Bytes(), nil
-}
-
-var rawSpec = decodeSpecCached()
-
-// a naive cached of a decoded swagger spec
-func decodeSpecCached() func() ([]byte, error) {
-	data, err := decodeSpec()
-	return func() ([]byte, error) {
-		return data, err
-	}
-}
-
-// Constructs a synthetic filesystem for resolving external references when loading openapi specifications.
-func PathToRawSpec(pathToFile string) map[string]func() ([]byte, error) {
-	res := make(map[string]func() ([]byte, error))
-	if len(pathToFile) > 0 {
-		res[pathToFile] = rawSpec
-	}
-
-	return res
-}
-
-// GetSwagger returns the Swagger specification corresponding to the generated code
-// in this file. The external references of Swagger specification are resolved.
-// The logic of resolving external references is tightly connected to "import-mapping" feature.
-// Externally referenced files must be embedded in the corresponding golang packages.
-// Urls can be supported but this task was out of the scope.
-func GetSwagger() (swagger *openapi3.T, err error) {
-	resolvePath := PathToRawSpec("")
-
-	loader := openapi3.NewLoader()
-	loader.IsExternalRefsAllowed = true
-	loader.ReadFromURIFunc = func(loader *openapi3.Loader, url *url.URL) ([]byte, error) {
-		pathToFile := url.String()
-		pathToFile = path.Clean(pathToFile)
-		getSpec, ok := resolvePath[pathToFile]
-		if !ok {
-			err1 := fmt.Errorf("path not found: %s", pathToFile)
-			return nil, err1
-		}
-		return getSpec()
-	}
-	var specData []byte
-	specData, err = rawSpec()
-	if err != nil {
-		return
-	}
-	swagger, err = loader.LoadFromData(specData)
-	if err != nil {
-		return
-	}
-	return
 }
