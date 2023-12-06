@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/oapi-codegen/runtime"
 )
 
 const (
@@ -46,8 +48,23 @@ type MeasuringPoint struct {
 	TracePostTrigger    *float64      `json:"trace_post_trigger,omitempty"`
 	TracePreTrigger     *float64      `json:"trace_pre_trigger,omitempty"`
 	TraceSaveLevel      *float64      `json:"trace_save_level,omitempty"`
-	//UserLocation        *Location `json:"user_location,omitempty"`
+	// UserLocation        *Location `json:"user_location,omitempty"`
 	VibrationType       *string   `json:"vibration_type,omitempty"`
+}
+
+// PeakRecord defines model for PeakRecord.
+type PeakRecord struct {
+	Category      *string `json:"category,omitempty"`
+	GuideLine     *string `json:"guide_line,omitempty"`
+	MeasuringType *string `json:"measuring_type,omitempty"`
+	Timestamp     *int64  `json:"timestamp,omitempty"`
+	VibrationType *string `json:"vibration_type,omitempty"`
+}
+
+// PeakRecordsResponse defines model for PeakRecordsResponse.
+type PeakRecordsResponse struct {
+	Ok      bool         `json:"ok"`
+	Samples []PeakRecord `json:"samples"`
 }
 
 // Sensor defines model for Sensor.
@@ -63,6 +80,18 @@ type Sensor struct {
 type SuccessResponse struct {
 	Ok      bool      `json:"ok"`
 	Sensors *[]Sensor `json:"sensors,omitempty"`
+}
+
+// GetPeakRecordsParams defines parameters for GetPeakRecords.
+type GetPeakRecordsParams struct {
+	// MeasuringPointId ID of the measuring point
+	MeasuringPointId int `form:"measuring_point_id" json:"measuring_point_id"`
+
+	// StartTime Start time in milliseconds since epoch
+	StartTime int `form:"start_time" json:"start_time"`
+
+	// EndTime End time in milliseconds since epoch (optional)
+	EndTime *int `form:"end_time,omitempty" json:"end_time,omitempty"`
 }
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
@@ -138,8 +167,23 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// GetPeakRecords request
+	GetPeakRecords(ctx context.Context, params *GetPeakRecordsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListSensors request
 	ListSensors(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) GetPeakRecords(ctx context.Context, params *GetPeakRecordsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPeakRecordsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) ListSensors(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -152,6 +196,79 @@ func (c *Client) ListSensors(ctx context.Context, reqEditors ...RequestEditorFn)
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewGetPeakRecordsRequest generates requests for GetPeakRecords
+func NewGetPeakRecordsRequest(server string, params *GetPeakRecordsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/get_peak_records")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "measuring_point_id", runtime.ParamLocationQuery, params.MeasuringPointId); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "start_time", runtime.ParamLocationQuery, params.StartTime); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.EndTime != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "end_time", runtime.ParamLocationQuery, *params.EndTime); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewListSensorsRequest generates requests for ListSensors
@@ -208,18 +325,18 @@ func NewClientWithResponses(server string, token string, opts ...ClientOption) (
 		return nil, err
 	}
 	client.RequestEditors = append(client.RequestEditors, 
-	func(ctx context.Context, req *http.Request) error {
-		// Get the existing query values
-		query := req.URL.Query()
-
-		// Add the token to the query values
-		query.Set("token", token)
-
-		// Set the modified query values back to the request URL
-		req.URL.RawQuery = query.Encode()
-
-		return nil
-	})
+		func(ctx context.Context, req *http.Request) error {
+			// Get the existing query values
+			query := req.URL.Query()
+	
+			// Add the token to the query values
+			query.Set("token", token)
+	
+			// Set the modified query values back to the request URL
+			req.URL.RawQuery = query.Encode()
+	
+			return nil
+		})
 	return &ClientWithResponses{client}, nil
 }
 
@@ -237,8 +354,35 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// GetPeakRecordsWithResponse request
+	GetPeakRecordsWithResponse(ctx context.Context, params *GetPeakRecordsParams, reqEditors ...RequestEditorFn) (*GetPeakRecordsResponse, error)
+
 	// ListSensorsWithResponse request
 	ListSensorsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListSensorsResponse, error)
+}
+
+type GetPeakRecordsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PeakRecordsResponse
+	JSON400      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPeakRecordsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPeakRecordsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type ListSensorsResponse struct {
@@ -265,6 +409,15 @@ func (r ListSensorsResponse) StatusCode() int {
 	return 0
 }
 
+// GetPeakRecordsWithResponse request returning *GetPeakRecordsResponse
+func (c *ClientWithResponses) GetPeakRecordsWithResponse(ctx context.Context, params *GetPeakRecordsParams, reqEditors ...RequestEditorFn) (*GetPeakRecordsResponse, error) {
+	rsp, err := c.GetPeakRecords(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPeakRecordsResponse(rsp)
+}
+
 // ListSensorsWithResponse request returning *ListSensorsResponse
 func (c *ClientWithResponses) ListSensorsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListSensorsResponse, error) {
 	rsp, err := c.ListSensors(ctx, reqEditors...)
@@ -272,6 +425,46 @@ func (c *ClientWithResponses) ListSensorsWithResponse(ctx context.Context, reqEd
 		return nil, err
 	}
 	return ParseListSensorsResponse(rsp)
+}
+
+// ParseGetPeakRecordsResponse parses an HTTP response from a GetPeakRecordsWithResponse call
+func ParseGetPeakRecordsResponse(rsp *http.Response) (*GetPeakRecordsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPeakRecordsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PeakRecordsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseListSensorsResponse parses an HTTP response from a ListSensorsWithResponse call
@@ -308,8 +501,7 @@ func ParseListSensorsResponse(rsp *http.Response) (*ListSensorsResponse, error) 
 			return nil, err
 		}
 		response.JSON500 = &dest
-	default:
-		return nil, fmt.Errorf("wrong content type or status code")
+
 	}
 
 	return response, nil

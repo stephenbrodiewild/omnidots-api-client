@@ -34,6 +34,51 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /get_peak_records:
+    get:
+      summary: Fetch peak particle velocity/acceleration records
+      operationId: getPeakRecords
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: query
+          name: measuring_point_id
+          required: true
+          schema:
+            type: integer
+          description: ID of the measuring point
+        - in: query
+          name: start_time
+          required: true
+          schema:
+            type: integer
+          description: Start time in milliseconds since epoch
+        - in: query
+          name: end_time
+          required: false
+          schema:
+            type: integer
+          description: End time in milliseconds since epoch (optional)
+      responses:
+        '200':
+          description: Peak records data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeakRecordsResponse'
+        '400':
+          description: Bad Request (Invalid Parameters or Missing Parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -127,3 +172,32 @@ components:
           type: integer
         trace_save_level:
           type: integer
+
+    PeakRecordsResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        samples:
+          type: array
+          items:
+            $ref: '#/components/schemas/PeakRecord'
+      required:
+        - ok
+        - samples
+
+    PeakRecord:
+      type: object
+      properties:
+        timestamp:
+          type: integer
+          format: int64
+        category:
+          type: string
+        measuring_type:
+          type: string
+        vibration_type:
+          type: string
+        guide_line:
+          type: string
