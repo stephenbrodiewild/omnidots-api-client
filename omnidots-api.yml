@@ -1,0 +1,129 @@
+openapi: 3.0.3
+info:
+  title: Omnidots API
+  version: 1.0.0
+description: API for accessing Omnidots services including sensor data.
+
+servers:
+  - url: 'http://URL/api/v1'
+
+paths:
+  /list_sensors:
+    get:
+      summary: Get a list of active sensors
+      operationId: listSensors
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: A list of active sensors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Bad Request (Invalid Parameters or Missing Parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: query
+      name: token
+
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        sensors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Sensor'
+      required:
+        - ok
+
+    ErrorResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: false
+        message:
+          type: string
+        help:
+          type: string
+          format: uri
+      required:
+        - ok
+
+    Sensor:
+      type: object
+      properties:
+        name:
+          type: string
+        lastseen:
+          type: string
+          format: date-time
+        connected_using:
+          type: string
+        location:
+          $ref: '#/components/schemas/Location'
+        measuring_point:
+          $ref: '#/components/schemas/MeasuringPoint'
+
+    Location:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+
+    MeasuringPoint:
+      type: object
+      properties:
+        name:
+          type: string
+        id:
+          type: integer
+        user_location:
+          $ref: '#/components/schemas/Location'
+        active:
+          type: boolean
+        category:
+          type: string
+        measuring_type:
+          type: string
+        vibration_type:
+          type: string
+        guide_line:
+          type: string
+        alarm_percentage:
+          type: integer
+        data_save_level:
+          type: number
+        disable_led:
+          type: boolean
+        measurement_duration:
+          type: integer
+        trace_post_trigger:
+          type: integer
+        trace_pre_trigger:
+          type: integer
+        trace_save_level:
+          type: integer
