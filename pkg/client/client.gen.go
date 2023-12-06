@@ -43,10 +43,10 @@ type MeasuringPoint struct {
 	MeasurementDuration *int      `json:"measurement_duration,omitempty"`
 	MeasuringType       *string   `json:"measuring_type,omitempty"`
 	Name                *string   `json:"name,omitempty"`
-	TracePostTrigger    *int      `json:"trace_post_trigger,omitempty"`
-	TracePreTrigger     *int      `json:"trace_pre_trigger,omitempty"`
-	TraceSaveLevel      *int      `json:"trace_save_level,omitempty"`
-	UserLocation        *Location `json:"user_location,omitempty"`
+	TracePostTrigger    *float64      `json:"trace_post_trigger,omitempty"`
+	TracePreTrigger     *float64      `json:"trace_pre_trigger,omitempty"`
+	TraceSaveLevel      *float64      `json:"trace_save_level,omitempty"`
+	//UserLocation        *Location `json:"user_location,omitempty"`
 	VibrationType       *string   `json:"vibration_type,omitempty"`
 }
 
@@ -202,11 +202,24 @@ type ClientWithResponses struct {
 
 // NewClientWithResponses creates a new ClientWithResponses, which wraps
 // Client with return type handling
-func NewClientWithResponses(server string, opts ...ClientOption) (*ClientWithResponses, error) {
+func NewClientWithResponses(server string, token string, opts ...ClientOption) (*ClientWithResponses, error) {
 	client, err := NewClient(server, opts...)
 	if err != nil {
 		return nil, err
 	}
+	client.RequestEditors = append(client.RequestEditors, 
+	func(ctx context.Context, req *http.Request) error {
+		// Get the existing query values
+		query := req.URL.Query()
+
+		// Add the token to the query values
+		query.Set("token", token)
+
+		// Set the modified query values back to the request URL
+		req.URL.RawQuery = query.Encode()
+
+		return nil
+	})
 	return &ClientWithResponses{client}, nil
 }
 
@@ -295,7 +308,8 @@ func ParseListSensorsResponse(rsp *http.Response) (*ListSensorsResponse, error) 
 			return nil, err
 		}
 		response.JSON500 = &dest
-
+	default:
+		return nil, fmt.Errorf("wrong content type or status code")
 	}
 
 	return response, nil
